@@ -1,10 +1,9 @@
 import torch
 from PIL import Image
 from torchvision import transforms
-from clip_metric import ClipSimilarity  # 假设你的类保存在 clip_metric.py 文件中
+from clip_metric import ClipSimilarity  
 import argparse
 
-# 预处理 transform（范围[0,1]，不做Resize，让ClipSimilarity自己做）
 preprocess = transforms.Compose([
     transforms.ToTensor()
 ])
@@ -20,7 +19,6 @@ def main(args):
     image_0 = load_image(args.image0).to(device)
     image_1 = load_image(args.image1).to(device)
 
-    # 使用两个 dummy 的 text prompt 来匹配
     text_0 = [args.text0]
     text_1 = [args.text1]
 
