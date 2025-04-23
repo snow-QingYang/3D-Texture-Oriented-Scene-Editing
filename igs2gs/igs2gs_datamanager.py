@@ -88,7 +88,7 @@ from nerfstudio.utils.rich_utils import CONSOLE
 
 class InstructGS2GSDataManagerConfig(FullImageDatamanagerConfig):
     _target: Type = field(default_factory=lambda: InstructGS2GSDataManager)
-    dataparser: AnnotatedDataParserUnion = NerfstudioDataParserConfig()
+    dataparser: NerfstudioDataParserConfig = field(default_factory=NerfstudioDataParserConfig)
     camera_res_scale_factor: float = 1.0
     """The scale factor for scaling spatial data such as images, mask, semantics
     along with relevant information about camera intrinsics

@@ -203,3 +203,6 @@ outputs/
 face/
 fangzhou/
 *.zip
+output_images/
+comparison_outputs/
+gsplat_imgs/

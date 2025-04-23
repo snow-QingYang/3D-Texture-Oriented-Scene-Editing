@@ -176,7 +176,7 @@ class GStexModelConfig(ModelConfig):
     resolution_schedule: int = 250
     """training starts at 1/d resolution, every n steps this is doubled"""
     # initialization 
-    background_color: Literal["random", "black", "white"] = "white"    
+    background_color: Literal["random", "black", "white"] = "black"    
     """Whether to randomize the background color."""
     num_downscales: int = 0
     """at the beginning, resolution is 1/2^d, where d is this number"""
@@ -500,7 +500,7 @@ class GStexModel(Model):
         # analytic matrix inverse to get world2camera matrix
         R_inv = R.T
         T_inv = -R_inv @ T
-        viewmat = torch.eye(4, device=R.device, dtype=R.dtype)
+        viewmat = torch.eye(4, device=R.device, dtype=torch.float32) #change here
         viewmat[:3, :3] = R_inv
         viewmat[:3, 3:4] = T_inv
         c2w = viewmat.squeeze().inverse()
@@ -1000,7 +1000,6 @@ class GStexModel(Model):
         Returns:
             Outputs of model. (ie. rendered colors)
         """
-
         extra_stuff = (not self.measure_fps) and (not self.training)
         
         assert isinstance(camera, Cameras)
@@ -1037,7 +1036,7 @@ class GStexModel(Model):
         # analytic matrix inverse to get world2camera matrix
         R_inv = R.T
         T_inv = -R_inv @ T
-        viewmat = torch.eye(4, device=R.device, dtype=R.dtype)
+        viewmat = torch.eye(4, device=R.device, dtype=torch.float32) # change here
         viewmat[:3, :3] = R_inv
         viewmat[:3, 3:4] = T_inv
         c2w = viewmat.squeeze().inverse()
@@ -1210,12 +1209,14 @@ class GStexModel(Model):
             images = {"rgb": rgb, "background": background}
             return images
 
-        depth = out_depth[...,None]
+        depth = out_depth[...,None].detach()
         alpha = out_alpha[...,None]
         reg = out_reg[...,None]
         normal_im = out_normal
         texture_rgbs = out_texture[:,:,0:3]
-
+        # print("depth range", depth.min(), depth.max())
+        # depth = depth - depth.min().item()
+        # depth = depth / depth.max().item()
         if self.config.use_normal_loss:
             # detach gradient between estimated normal and depth
             estimated_normal_im = depth_to_normal(depth, viewmat, c2w, self.intrinsics, H, W).detach()

@@ -42,7 +42,7 @@ from nerfstudio.utils import colormaps
 
 from diffusers import StableDiffusionControlNetPipeline, ControlNetModel, UNet2DConditionModel
 from diffusers.schedulers import DDIMScheduler, DDIMInverseScheduler
-
+import imageio
 CONSOLE = Console(width=120)
 
 @dataclass
@@ -51,7 +51,7 @@ class GaussCtrlPipelineConfig(VanillaPipelineConfig):
 
     _target: Type = field(default_factory=lambda: GaussCtrlPipeline)
     """target class to instantiate"""
-    datamanager: GaussCtrlDataManagerConfig = GaussCtrlDataManagerConfig()
+    datamanager: GaussCtrlDataManagerConfig = field(default_factory=GaussCtrlDataManagerConfig) 
     """specifies the datamanager config"""
     render_rate: int = 500
     """how many gauss steps for gauss training"""
@@ -121,6 +121,8 @@ class GaussCtrlPipeline(VanillaPipeline):
 
     def render_reverse(self):
         '''Render rgb, depth and reverse rgb images back to latents'''
+        input_dir = "/home/u/qingyangbao/3d-editing/gsplat_imgs"
+        output_dir="/home/u/qingyangbao/3d-editing/output_images"
         for cam_idx in range(len(self.datamanager.cameras)):
             CONSOLE.print(f"Rendering view {cam_idx}", style="bold yellow")
             current_cam = self.datamanager.cameras[cam_idx].to(self.device)
@@ -130,9 +132,13 @@ class GaussCtrlPipeline(VanillaPipeline):
             rendered_image = self._model.get_outputs_for_camera(current_cam)
 
             rendered_rgb = rendered_image['rgb'].to(torch.float16) # [512 512 3] 0-1
+            # np.save(os.path.join(input_dir, f"rendered_{cam_idx}.npy"), rendered_rgb.cpu().numpy())
             rendered_depth = rendered_image['depth'].to(torch.float16) # [512 512 1]
-            output_dir="/scratch/ondemand28/qingyangbao/3d-editing/output_images"
-            # Save RGB image
+            # np.save(os.path.join(input_dir, f"depth_{cam_idx}.npy"), rendered_depth.cpu().numpy())
+            # rendered_depth = torch.from_numpy(np.load(os.path.join(input_dir, f"depth_{cam_idx}.npy"))).to(torch.float16)
+            # rendered_rgb = torch.from_numpy(np.load(os.path.join(input_dir, f"rendered_{cam_idx}.npy"))).to(torch.bfloat16).to(self.device)
+            
+            # # Save RGB image
             rgb_np = (rendered_rgb.cpu().numpy() * 255).astype(np.uint8)
             rgb_pil = Image.fromarray(rgb_np)
             rgb_pil.save(os.path.join(output_dir, f"rendered_rgb_{cam_idx}.png"))
@@ -141,12 +147,14 @@ class GaussCtrlPipeline(VanillaPipeline):
             depth_np = (rendered_depth.squeeze().cpu().numpy() * 255).astype(np.uint8)
             depth_pil = Image.fromarray(depth_np, mode='L')  # 'L' mode for grayscale
             depth_pil.save(os.path.join(output_dir, f"rendered_depth_{cam_idx}.png"))
+
+
             # reverse the images to noises
             self.pipe.unet.set_attn_processor(processor=AttnProcessor())
             self.pipe.controlnet.set_attn_processor(processor=AttnProcessor()) 
             init_latent = self.image2latent(rendered_rgb)
             disparity = self.depth2disparity_torch(rendered_depth[:,:,0][None]) 
-            
+            # disparity_torch = torch.zeros_like(disparity).to(torch.float16).to(self.pipe_device)
             self.pipe.scheduler = self.ddim_inverser
             latent, _ = self.pipe(prompt=self.positive_reverse_prompt, #  placeholder here, since cfg=0
                                 num_inference_steps=self.num_inference_steps, 
@@ -155,16 +163,21 @@ class GaussCtrlPipeline(VanillaPipeline):
 
             # LangSAM is optional
             if self.config.langsam_obj != "":
-                langsam_obj = self.config.langsam_obj
+                print(self.config.langsam_obj)
+                langsam_obj_list = [self.config.langsam_obj]
                 langsam_rgb_pil = Image.fromarray((rendered_rgb.cpu().numpy() * 255).astype(np.uint8))
-                masks, _, _, _ = self.langsam.predict(langsam_rgb_pil, langsam_obj)
-                mask_npy = masks.clone().cpu().numpy()[0] * 1
+                langsam_rgb_pil_list = [langsam_rgb_pil]
+                masks= self.langsam.predict(langsam_rgb_pil_list, langsam_obj_list)
+                masks = masks[0]
+                masks = masks["masks"]
+                mask_npy = masks[0] * 1
 
             if self.config.langsam_obj != "":
                 self.update_datasets(cam_idx, rendered_rgb.cpu(), rendered_depth, latent, mask_npy)
             else: 
                 self.update_datasets(cam_idx, rendered_rgb.cpu(), rendered_depth, latent, None)
-        
+
+ 
     def edit_images(self):
         '''Edit images with ControlNet and AttnAlign''' 
         # Set up ControlNet and AttnAlign
@@ -183,18 +196,25 @@ class GaussCtrlPipeline(VanillaPipeline):
         print("#############################")
         ref_disparity_list = []
         ref_z0_list = []
+        input_dir = "/home/u/qingyangbao/3d-editing/gsplat_imgs"
         for ref_idx in self.ref_indices:
-            ref_data = deepcopy(self.datamanager.train_data[ref_idx]) 
-            ref_disparity = self.depth2disparity(ref_data['depth_image']) 
+            ref_data = deepcopy(self.datamanager.train_data[ref_idx])       
             ref_z0 = ref_data['z_0_image']
+            dep_img = ref_data['depth_image']
+            # dep_img = np.load(os.path.join(input_dir, f"ref_depth_{ref_idx}.npy"))
+            ref_disparity = self.depth2disparity(dep_img) 
             ref_disparity_list.append(ref_disparity)
             ref_z0_list.append(ref_z0) 
             
         ref_disparities = np.concatenate(ref_disparity_list, axis=0)
         ref_z0s = np.concatenate(ref_z0_list, axis=0)
+
         ref_disparity_torch = torch.from_numpy(ref_disparities.copy()).to(torch.float16).to(self.pipe_device)
+        # ref_disparity_torch = torch.zeros_like(torch.from_numpy(ref_disparities.copy())).to(torch.float16).to(self.pipe_device)
         ref_z0_torch = torch.from_numpy(ref_z0s.copy()).to(torch.float16).to(self.pipe_device)
 
+        output_dir = "/home/u/qingyangbao/3d-editing/output_images/edited_images"
+        os.makedirs(output_dir, exist_ok=True)
         # Edit images in chunk
         for idx in range(0, len(self.datamanager.train_data), self.chunk_size): 
             chunked_data = self.datamanager.train_data[idx: idx+self.chunk_size]
@@ -204,17 +224,23 @@ class GaussCtrlPipeline(VanillaPipeline):
             unedited_images = [current_data['unedited_image'] for current_data in chunked_data]
             CONSOLE.print(f"Generating view: {indices}", style="bold yellow")
 
+            # depth images
             depth_images = [self.depth2disparity(current_data['depth_image']) for current_data in chunked_data]
             disparities = np.concatenate(depth_images, axis=0)
-            disparities_torch = torch.from_numpy(disparities.copy()).to(torch.float16).to(self.pipe_device)
 
+            
+            disparities_torch = torch.from_numpy(disparities.copy()).to(torch.float16).to(self.pipe_device)
+            # disparities_torch = torch.zeros_like(torch.from_numpy(disparities.copy())).to(torch.float16).to(self.pipe_device)
+
+            # z_o images
             z_0_images = [current_data['z_0_image'] for current_data in chunked_data] # list of np array
             z0s = np.concatenate(z_0_images, axis=0)
             latents_torch = torch.from_numpy(z0s.copy()).to(torch.float16).to(self.pipe_device)
 
             disp_ctrl_chunk = torch.concatenate((ref_disparity_torch, disparities_torch), dim=0)
+            print(disp_ctrl_chunk.shape)
             latents_chunk = torch.concatenate((ref_z0_torch, latents_torch), dim=0)
-            
+            print(latents_chunk.shape)
             chunk_edited = self.pipe(
                                 prompt=[self.positive_prompt] * (self.num_ref_views+len(chunked_data)),
                                 negative_prompt=[self.negative_prompts] * (self.num_ref_views+len(chunked_data)),
@@ -227,20 +253,26 @@ class GaussCtrlPipeline(VanillaPipeline):
                                 output_type='pt',
                             ).images[self.num_ref_views:]
             chunk_edited = chunk_edited.cpu() 
-
+            print(chunk_edited.shape)
             # Insert edited images back to train data for training
             for local_idx, edited_image in enumerate(chunk_edited):
                 global_idx = indices[local_idx]
 
                 bg_cntrl_edited_image = edited_image
+                print("mask", len(mask_images))
                 if mask_images != []:
                     mask = torch.from_numpy(mask_images[local_idx])
                     bg_mask = 1 - mask
 
                     unedited_image = unedited_images[local_idx].permute(2,0,1)
                     bg_cntrl_edited_image = edited_image * mask[None] + unedited_image * bg_mask[None] 
-
-                self.datamanager.train_data[global_idx]["image"] = bg_cntrl_edited_image.permute(1,2,0).to(torch.float32) # [512 512 3]
+                final_image = bg_cntrl_edited_image.permute(1,2,0).to(torch.float32) # [512 512 3]
+                print(final_image.shape)
+                self.datamanager.train_data[global_idx]["image"] = final_image
+                # store the edited images
+                edited_np = (final_image.cpu().numpy() * 255).astype(np.uint8)
+                edited_pil = Image.fromarray(edited_np)
+                edited_pil.save(os.path.join(output_dir, f"edited_image_{global_idx}.png"))
         print("#############################")
         CONSOLE.print("Done Editing", style="bold yellow")
         print("#############################")
@@ -298,3 +330,20 @@ class GaussCtrlPipeline(VanillaPipeline):
     def forward(self):
         """Not implemented since we only want the parameter saving of the nn module, but not forward()"""
         raise NotImplementedError
+def _save_image(array, filepath):
+    """Helper function to save a numpy image (e.g., depth map) to disk."""
+    import numpy as np
+    from PIL import Image
+
+    # Squeeze extra dims
+    if array.ndim == 3:
+        array = np.squeeze(array)
+
+    # Normalize to [0, 255]
+    array_min = array.min()
+    array_max = array.max()
+    array_norm = (array - array_min) / (array_max - array_min + 1e-8)
+    array_img = (array_norm * 255).astype(np.uint8)
+
+    Image.fromarray(array_img).save(filepath)
+

@@ -37,9 +37,9 @@ from gsplat.rasterize import rasterize_gaussians
 from nerfstudio.data.scene_box import OrientedBox
 from gstex.gstex import GStexModel, GStexModelConfig
 @dataclass
-class GaussCtrlModelConfig(SplatfactoModelConfig):
+class GStexCtrlModelConfig(GStexModelConfig):
     """Configuration for the GaussCtrl."""
-    _target: Type = field(default_factory=lambda: GaussCtrlModel)
+    _target: Type = field(default_factory=lambda: GStexCtrlModel)
     use_lpips: bool = True
     """Whether to use LPIPS loss"""
     use_l1: bool = True
@@ -49,7 +49,7 @@ class GaussCtrlModelConfig(SplatfactoModelConfig):
     lpips_loss_mult: float = 1.0
     """Multiplier for LPIPS loss."""
 
-class GaussCtrlModel(SplatfactoModel):
+class GStexCtrlModel(GStexModel):
     """Model for GaussCtrl."""
 
     config: GaussCtrlModelConfig

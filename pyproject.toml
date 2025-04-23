@@ -41,6 +41,8 @@ include = ["igs2gs", "gstex","gaussctrl"]
 igs2gs = 'igs2gs.igs2gs_config:igs2gs_method'
 gstex-blender-nvs = 'gstex.gstex_configs:blender_method'
 gstex-dtu-nvs = 'gstex.gstex_configs:dtu_method'
+gstex-dtu-load = 'gstex.gstex_configs:dtu_load_method'
 gaussctrl = 'gaussctrl.gc_config:gaussctrl_method'
+gstexctrl = 'gaussctrl.gc_config:gstexctrl_method'
 [project.scripts]
 ns-gaussctrl-render = "igs2gs.gc_render:entrypoint"

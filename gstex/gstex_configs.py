@@ -132,8 +132,8 @@ dtu_method = MethodSpecification(
         ),
         model=GStexModelConfig(
             sh_degree=3,
-            pixel_num=1e8,
-            background_color="black",
+            pixel_num=1e6,
+            background_color="white",
             build_chart_every=100,
             fix_init=True,
             sigma_factor=3.0,
@@ -182,5 +182,85 @@ dtu_method = MethodSpecification(
         quit_on_train_completion=True,
     ),
 ),
- description="gstex dtu version",
+ description="gstex dtu colmap version",
+)
+
+dtu_load_method = MethodSpecification(  
+    config = TrainerConfig(
+    method_name="gstex-load",
+    steps_per_eval_image=0,
+    steps_per_eval_batch=0,
+    steps_per_save=0,
+    steps_per_eval_all_images=0,
+    max_num_iterations=15000,
+    mixed_precision=False,
+    vis="viewer+tensorboard",
+    gradient_accumulation_steps={"camera_opt": 100},
+    pipeline=VanillaPipelineConfig(
+        datamanager=FullImageDatamanagerConfig(
+            dataparser=NerfstudioDataParserConfig(
+                load_3D_points=True,
+                eval_mode="interval",
+                eval_interval=8,
+                orientation_method="none",
+                center_method="none",
+                auto_scale_poses=False,
+                # downscale_factor=2,
+            ),
+            cache_images_type="uint8",
+        ),
+        model=GStexModelConfig(
+            sh_degree=3,
+            pixel_num=1e6,
+            background_color="white",
+            build_chart_every=100,
+            fix_init=True,
+            fix_lod_init=True,
+            sigma_factor=3.0,
+        ),
+    ),
+    optimizers={
+        "xyz": {
+            # scale by spatial_lr_scale which is around 2.0 for DTU [1.85, 1.85, 1.784 etc.]
+            "optimizer": AdamOptimizerConfig(lr=2 * 1.6e-4, eps=1e-15),
+            "scheduler": ExponentialDecaySchedulerConfig(
+                lr_final=2 * 1.6e-6,
+                max_steps=30000,
+            ),
+        },
+        "features_dc": {
+            "optimizer": AdamOptimizerConfig(lr=0.0025, eps=1e-15),
+            "scheduler": None,
+        },
+        "features_rest": {
+            "optimizer": AdamOptimizerConfig(lr=0.0025 / 20, eps=1e-15),
+            "scheduler": None,
+        },
+        "opacity": {
+            "optimizer": AdamOptimizerConfig(lr=0.05, eps=1e-15),
+            "scheduler": None,
+        },
+        "scaling": {
+            "optimizer": AdamOptimizerConfig(lr=0.005, eps=1e-15),
+            "scheduler": None,
+        },
+        "rotation": {
+            "optimizer": AdamOptimizerConfig(lr=0.001, eps=1e-15),
+            "scheduler": None
+        },
+        "texture_dc": {
+            "optimizer": AdamOptimizerConfig(lr=1e-3, eps=1e-15),
+            "scheduler": None
+        },
+        "camera_opt": {
+            "optimizer": AdamOptimizerConfig(lr=1e-3, eps=1e-15),
+            "scheduler": ExponentialDecaySchedulerConfig(lr_final=5e-5, max_steps=30000),
+        },
+    },
+    viewer=ViewerConfig(
+        num_rays_per_chunk=1 << 15,
+        quit_on_train_completion=True,
+    ),
+    ),
+    description="gstex dtu 2dgs version",
 )

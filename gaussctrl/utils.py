@@ -51,11 +51,11 @@ class CrossViewAttnProcessor:
             scale=1.0,):
 
         residual = hidden_states
-        
+
         args = () if USE_PEFT_BACKEND else (scale,)
 
         if attn.spatial_norm is not None:
-            hidden_states = attn.spatial_norm(hidden_states, temb)
+            hidden_states = attn.spatial_norm(hidden_dstates, temb)
 
         input_ndim = hidden_states.ndim
 
@@ -71,7 +71,8 @@ class CrossViewAttnProcessor:
         if attn.group_norm is not None:
             hidden_states = attn.group_norm(hidden_states.transpose(1, 2)).transpose(1, 2)
 
-        query = attn.to_q(hidden_states, *args)
+        # query = attn.to_q(hidden_states, *args)
+        query = attn.to_q(hidden_states)
 
         is_cross_attention = encoder_hidden_states is not None
         if encoder_hidden_states is None:
@@ -79,8 +80,12 @@ class CrossViewAttnProcessor:
         elif attn.norm_cross:
             encoder_hidden_states = attn.norm_encoder_hidden_states(encoder_hidden_states)
 
-        key = attn.to_k(encoder_hidden_states, *args)
-        value = attn.to_v(encoder_hidden_states, *args)
+        # key = attn.to_k(encoder_hidden_states, *args)
+        key = attn.to_k(encoder_hidden_states)
+
+        # value = attn.to_v(encoder_hidden_states, *args)
+        value = attn.to_v(encoder_hidden_states)
+
         query = attn.head_to_batch_dim(query)
         # Sparse Attention
         if not is_cross_attention:
@@ -118,7 +123,8 @@ class CrossViewAttnProcessor:
         hidden_states = attn.batch_to_head_dim(hidden_states)
 
         # linear proj
-        hidden_states = attn.to_out[0](hidden_states, *args)
+        # hidden_states = attn.to_out[0](hidden_states, *args)
+        hidden_states = attn.to_out[0](hidden_states)
         # dropout
         hidden_states = attn.to_out[1](hidden_states)
 

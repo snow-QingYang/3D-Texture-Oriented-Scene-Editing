@@ -36,9 +36,9 @@ class InstructGS2GSPipelineConfig(VanillaPipelineConfig):
     
     _target: Type = field(default_factory=lambda: InstructGS2GSPipeline)
     """target class to instantiate"""
-    datamanager: DataManagerConfig = InstructGS2GSDataManagerConfig()
+    datamanager: InstructGS2GSDataManagerConfig = field(default_factory=InstructGS2GSDataManagerConfig)  
     """specifies the datamanager config"""
-    model: ModelConfig = InstructGS2GSModelConfig()
+    model: InstructGS2GSModelConfig = field(default_factory=InstructGS2GSModelConfig) 
     """specifies the model config"""
     prompt: str = "don't change the image"
     """prompt for InstructPix2Pix"""

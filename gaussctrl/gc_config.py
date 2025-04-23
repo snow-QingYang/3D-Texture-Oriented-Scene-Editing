@@ -35,11 +35,11 @@ from gaussctrl.gc_dataset import GCDataset
 from nerfstudio.data.datamanagers.base_datamanager import VanillaDataManager, VanillaDataManagerConfig
 from nerfstudio.data.datamanagers.full_images_datamanager import FullImageDatamanager, FullImageDatamanagerConfig
 from nerfstudio.plugins.registry_dataparser import DataParserSpecification    
+from gaussctrl.gstexcontrol_model import GStexCtrlModelConfig, GStexCtrlModel
 
-
-gaussctrl_method = MethodSpecification(
+gstexctrl_method = MethodSpecification(
     config=GaussCtrlTrainerConfig(
-        method_name="gaussctrl",
+        method_name="gstexctrl",
         steps_per_eval_image=100,
         steps_per_eval_batch=0,
         steps_per_save=250,
@@ -49,24 +49,25 @@ gaussctrl_method = MethodSpecification(
         mixed_precision=False,
         gradient_accumulation_steps={"camera_opt": 100},
         pipeline=GaussCtrlPipelineConfig(
-            render_rate= 2000,
+            render_rate= 5000,
             datamanager=GaussCtrlDataManagerConfig(
                 _target=GaussCtrlDataManager[GCDataset],
                 dataparser=GaussCtrlDataParserConfig(
                 load_3D_points=True,
-                # eval_mode="interval",
-                # eval_interval=8,
-                # orientation_method="none",
-                # center_method="none",
-                # auto_scale_poses=False,
+                eval_mode="interval",
+                eval_interval=8,
+                orientation_method="none",
+                center_method="none",
+                auto_scale_poses=False,
+                downscale_factor=2,
                 ),
             ),
-            model=GaussCtrlModelConfig(),
+            model=GStexCtrlModelConfig(),
         ),
         optimizers={
         "xyz": {
             # scale by spatial_lr_scale which is around 2.0 for DTU [1.85, 1.85, 1.784 etc.]
-            "optimizer": AdamOptimizerConfig(lr=1.6e-4, eps=1e-15),
+            "optimizer": AdamOptimizerConfig(lr=2 * 1.6e-5, eps=1e-15),
             "scheduler": ExponentialDecaySchedulerConfig(
                 lr_final=1.6e-6,
                 max_steps=15000,
@@ -92,10 +93,74 @@ gaussctrl_method = MethodSpecification(
             "optimizer": AdamOptimizerConfig(lr=0.001, eps=1e-15),
             "scheduler": None
         },
-        # "texture_dc": {
-        #     "optimizer": AdamOptimizerConfig(lr=0.05, eps=1e-15),
-        #     "scheduler": None
-        # },
+        "texture_dc": {
+            "optimizer": AdamOptimizerConfig(lr=0.05, eps=1e-15),
+            "scheduler": None
+        },
+        "camera_opt": {
+            "optimizer": AdamOptimizerConfig(lr=1e-3, eps=1e-15),
+            "scheduler": ExponentialDecaySchedulerConfig(lr_final=5e-5, max_steps=30000),
+        },
+    
+        },
+        viewer=ViewerConfig(num_rays_per_chunk=1 << 15),
+        vis="viewer",
+    ),
+    description="GaussCtrl",
+)
+
+
+gaussctrl_method = MethodSpecification(
+    config=GaussCtrlTrainerConfig(
+        method_name="gaussctrl",
+        steps_per_eval_image=100,
+        steps_per_eval_batch=0,
+        steps_per_save=250,
+        max_num_iterations=1000,
+        steps_per_eval_all_images=1000,
+        save_only_latest_checkpoint=True,
+        mixed_precision=False,
+        gradient_accumulation_steps={"camera_opt": 100},
+        pipeline=GaussCtrlPipelineConfig(
+            render_rate= 5000,
+            datamanager=GaussCtrlDataManagerConfig(
+                _target=GaussCtrlDataManager[GCDataset],
+                dataparser=GaussCtrlDataParserConfig(
+                load_3D_points=True,
+                downscale_factor=4,
+                ),
+            ),
+            model=GaussCtrlModelConfig(),
+        ),
+        optimizers={
+        "xyz": {
+            # scale by spatial_lr_scale which is around 2.0 for DTU [1.85, 1.85, 1.784 etc.]
+            "optimizer": AdamOptimizerConfig(lr=2 * 1.6e-5, eps=1e-15),
+            "scheduler": ExponentialDecaySchedulerConfig(
+                lr_final=1.6e-6,
+                max_steps=15000,
+            ),
+        },
+        "features_dc": {
+            "optimizer": AdamOptimizerConfig(lr=0.0025, eps=1e-15),
+            "scheduler": None,
+        },
+        "features_rest": {
+            "optimizer": AdamOptimizerConfig(lr=0.0025 / 20, eps=1e-15),
+            "scheduler": None,
+        },
+        "opacity": {
+            "optimizer": AdamOptimizerConfig(lr=0.05, eps=1e-15),
+            "scheduler": None,
+        },
+        "scaling": {
+            "optimizer": AdamOptimizerConfig(lr=0.005, eps=1e-15),
+            "scheduler": None,
+        },
+        "rotation": {
+            "optimizer": AdamOptimizerConfig(lr=0.001, eps=1e-15),
+            "scheduler": None
+        },
         "camera_opt": {
             "optimizer": AdamOptimizerConfig(lr=1e-3, eps=1e-15),
             "scheduler": ExponentialDecaySchedulerConfig(lr_final=5e-5, max_steps=30000),
