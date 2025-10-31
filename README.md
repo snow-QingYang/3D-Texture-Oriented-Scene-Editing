@@ -41,7 +41,7 @@ We evaluate GStex-CTRL across several benchmark scenes:
 - **Datasets:** InstructNeRF2NeRF, Mip-NeRF360, BlendedMVS  
 - **Evaluation Metric:** CLIP Text-Image Directional Similarity  
 
-## 📚 Citation
+## Citation
 
 If you find this project helpful, please cite the following:
 
