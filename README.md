@@ -1,7 +1,7 @@
 # GStex-CTRL: Text-Driven Controllable 3D Editing with GStex
 
 **Authors:** Qingyang Bao, Victor Rong, David Lindell  
-**Conference:** Project Report based on WACV 2025 work on [GStex](https://arxiv.org/abs/2409.19061)
+**Conference:** Project Report based on WACV 2025 work on [GStex](https://arxiv.org/abs/2409.12954)
 
 ---
 
