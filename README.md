@@ -36,10 +36,6 @@ The workflow proceeds as follows:
 3. **Apply ControlNet Editing** conditioned on depth and text prompts.  
 4. **Optimize the GStex Model** using the edited renders to produce the final 3D scene.  
 
-<p align="center">
-  <img src="assets/pipeline.png" width="700"/>
-</p>
-
 ---
 
 ## Experiments
