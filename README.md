@@ -5,7 +5,7 @@
 
 ---
 
-##Overview
+## Overview
 
 **GStex-CTRL** introduces a **text-driven controllable 3D appearance editing pipeline** that combines the strengths of **GStex** (per-primitive texturing for 2D Gaussian Splatting) and **ControlNet-based diffusion editing**.  
 Our goal is to **decouple geometry and appearance** in 3D Gaussian Splatting (3DGS) and enable fine-grained **text-conditioned appearance edits** while maintaining strong **multi-view consistency**.
